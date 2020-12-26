@@ -188,15 +188,11 @@ public class ModelToRepresentation {
         rep.setEnabled(user.isEnabled());
         rep.setEmailVerified(user.isEmailVerified());
         rep.setTotp(session.userCredentialManager().isConfiguredFor(realm, user, OTPCredentialModel.TYPE));
-        rep.setDisableableCredentialTypes(session.userCredentialManager().getDisableableCredentialTypes(realm, user));
+        rep.setDisableableCredentialTypes(session.userCredentialManager()
+                .getDisableableCredentialTypesStream(realm, user).collect(Collectors.toSet()));
         rep.setFederationLink(user.getFederationLink());
-
         rep.setNotBefore(session.users().getNotBeforeOfUser(realm, user));
-
-        Set<String> requiredActions = user.getRequiredActions();
-        List<String> reqActions = new ArrayList<>(requiredActions);
-
-        rep.setRequiredActions(reqActions);
+        rep.setRequiredActions(user.getRequiredActionsStream().collect(Collectors.toList()));
 
         Map<String, List<String>> attributes = user.getAttributes();
         Map<String, List<String>> copy = null;
@@ -555,13 +551,10 @@ public class ModelToRepresentation {
         rep.setName(clientScopeModel.getName());
         rep.setDescription(clientScopeModel.getDescription());
         rep.setProtocol(clientScopeModel.getProtocol());
-        if (!clientScopeModel.getProtocolMappers().isEmpty()) {
-            List<ProtocolMapperRepresentation> mappings = new LinkedList<>();
-            for (ProtocolMapperModel model : clientScopeModel.getProtocolMappers()) {
-                mappings.add(toRepresentation(model));
-            }
+        List<ProtocolMapperRepresentation> mappings = clientScopeModel.getProtocolMappersStream()
+                .map(ModelToRepresentation::toRepresentation).collect(Collectors.toList());
+        if (!mappings.isEmpty())
             rep.setProtocolMappers(mappings);
-        }
 
         rep.setAttributes(new HashMap<>(clientScopeModel.getAttributes()));
 
@@ -621,13 +614,10 @@ public class ModelToRepresentation {
             rep.setRegisteredNodes(new HashMap<>(clientModel.getRegisteredNodes()));
         }
 
-        if (!clientModel.getProtocolMappers().isEmpty()) {
-            List<ProtocolMapperRepresentation> mappings = new LinkedList<>();
-            for (ProtocolMapperModel model : clientModel.getProtocolMappers()) {
-                mappings.add(toRepresentation(model));
-            }
+        List<ProtocolMapperRepresentation> mappings = clientModel.getProtocolMappersStream()
+                .map(ModelToRepresentation::toRepresentation).collect(Collectors.toList());
+        if (!mappings.isEmpty())
             rep.setProtocolMappers(mappings);
-        }
 
         AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
         ResourceServer resourceServer = authorization.getStoreFactory().getResourceServerStore().findById(clientModel.getId());

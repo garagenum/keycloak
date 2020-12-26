@@ -57,6 +57,7 @@ import org.keycloak.services.clientregistration.policy.DefaultClientRegistration
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import org.keycloak.utils.ReservedCharValidator;
 
 /**
@@ -96,7 +97,12 @@ public class RealmManager {
     }
 
     public RealmModel createRealm(String id, String name) {
-        if (id == null) id = KeycloakModelUtils.generateId();
+        if (id == null) {
+            id = KeycloakModelUtils.generateId();
+        }
+        else {
+            ReservedCharValidator.validate(id);
+        }
         ReservedCharValidator.validate(name);
         RealmModel realm = model.createRealm(id, name);
         realm.setName(name);
@@ -438,6 +444,8 @@ public class RealmManager {
             manageConsentRole.setDescription("${role_" + AccountRoles.MANAGE_CONSENT + "}");
             manageConsentRole.addCompositeRole(viewConsentRole);
 
+            KeycloakModelUtils.setupDeleteAccount(accountClient);
+
             ClientModel accountConsoleClient = realm.getClientByClientId(Constants.ACCOUNT_CONSOLE_CLIENT_ID);
             if (accountConsoleClient == null) {
                 accountConsoleClient = KeycloakModelUtils.createClient(realm, Constants.ACCOUNT_CONSOLE_CLIENT_ID);
@@ -502,6 +510,9 @@ public class RealmManager {
         if (id == null) {
             id = KeycloakModelUtils.generateId();
         }
+        else {
+            ReservedCharValidator.validate(id);
+        }
         RealmModel realm = model.createRealm(id, rep.getRealm());
         ReservedCharValidator.validate(rep.getRealm());
         realm.setName(rep.getRealm());
@@ -539,6 +550,7 @@ public class RealmManager {
             setupOfflineTokens(realm, rep);
         }
 
+
         if (rep.getClientScopes() == null) {
             createDefaultClientScopes(realm);
         }
@@ -571,6 +583,10 @@ public class RealmManager {
 
         setupAuthenticationFlows(realm);
         setupRequiredActions(realm);
+
+        if (!hasRealmRole(rep, AccountRoles.DELETE_ACCOUNT)) {
+            KeycloakModelUtils.setupDeleteAccount(realm.getClientByClientId(Constants.ACCOUNT_MANAGEMENT_CLIENT_ID));
+        }
 
         // Refresh periodic sync tasks for configured storageProviders
         UserStorageSyncManager storageSync = new UserStorageSyncManager();
@@ -674,24 +690,6 @@ public class RealmManager {
         return false;
     }
 
-    /**
-     * Query users based on a search string:
-     * <p/>
-     * "Bill Burke" first and last name
-     * "bburke@redhat.com" email
-     * "Burke" lastname or username
-     *
-     * @param searchString
-     * @param realmModel
-     * @return
-     */
-    public List<UserModel> searchUsers(String searchString, RealmModel realmModel) {
-        if (searchString == null) {
-            return Collections.emptyList();
-        }
-        return session.users().searchForUser(searchString.trim(), realmModel);
-    }
-
     private void setupAuthorizationServices(RealmModel realm) {
         KeycloakModelUtils.setupAuthorizationServices(realm);
     }
@@ -722,7 +720,15 @@ public class RealmManager {
             ClientManager clientManager = new ClientManager(this);
 
             for (ClientRepresentation client : clients) {
-                ClientModel clientModel = this.getRealmByName(rep.getRealm()).getClientById(client.getId());
+                RealmModel realmModel = this.getRealmByName(rep.getRealm());
+
+                ClientModel clientModel = Optional.ofNullable(client.getId())
+                        .map(realmModel::getClientById)
+                        .orElseGet(() -> realmModel.getClientByClientId(client.getClientId()));
+                
+                if (clientModel == null) {
+                    throw new RuntimeException("Cannot find provided client by dir import.");
+                }
 
                 UserModel serviceAccount = null;
                 if (clientModel.isServiceAccountsEnabled()) {

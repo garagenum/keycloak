@@ -245,7 +245,7 @@ public class ImpersonationTest extends AbstractKeycloakTest {
     protected Set<Cookie> testSuccessfulImpersonation(String admin, String adminRealm) {
         ResteasyClientBuilder resteasyClientBuilder = new ResteasyClientBuilder();
         resteasyClientBuilder.connectionPoolSize(10);
-        resteasyClientBuilder.httpEngine(AdminClientUtil.getCustomClientHttpEngine(resteasyClientBuilder, 10));
+        resteasyClientBuilder.httpEngine(AdminClientUtil.getCustomClientHttpEngine(resteasyClientBuilder, 10, null));
         ResteasyClient resteasyClient = resteasyClientBuilder.build();
 
         // Login adminClient
@@ -282,7 +282,7 @@ public class ImpersonationTest extends AbstractKeycloakTest {
             final UserSessionNotesHolder notesHolder = testingClient.server("test").fetch(session -> {
                 final RealmModel realm = session.realms().getRealmByName("test");
                 final UserModel user = session.users().getUserById(userId, realm);
-                final UserSessionModel userSession = session.sessions().getUserSessions(realm, user).get(0);
+                final UserSessionModel userSession = session.sessions().getUserSessionsStream(realm, user).findFirst().get();
                 return new UserSessionNotesHolder(userSession.getNotes());
             }, UserSessionNotesHolder.class);
 
